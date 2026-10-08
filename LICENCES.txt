@@ -1,0 +1,38 @@
+STICKY SPACE PAWS: what it is made of, and under what terms
+
+THE GAME
+  The game's own code, object and paw models, and design are the work of its author. All rights reserved
+  unless stated otherwise by the author.
+
+THREE.JS  (three.module.js, release 160)
+  Copyright 2010-2023 Three.js Authors. MIT licence:
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+  documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+  to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+  the Software.
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+  THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+  IN THE SOFTWARE.
+
+FONT  (assets/fonts/ui.ttf)
+  Ubuntu font family, Copyright 2010-2011 Canonical Ltd, licensed under the Ubuntu Font Licence, version 1.0
+  (https://ubuntu.com/legal/font-licence). The font is included unmodified.
+
+SOUND EFFECTS  (sounds/)
+  Impact, interface and science-fiction sounds: Kenney (www.kenney.nl), Creative Commons Zero (CC0, public domain).
+  Creature, eating and effect sounds: from OpenGameArt.org, each published by its uploader as Creative Commons
+  Zero 1.0 (CC0): StarNinjas ("7 Eating Crunches"), rubberduck ("80 CC0 creature SFX", "80 CC0 RPG SFX"),
+  kerzoven ("Cat Purr & Meow"), LFA ("Gastric Distress"), TinyWorlds ("huh?"), Felis Chaus ("Hedgehog examples"),
+  wubitog ("3 Pop Sounds"), farfadet46 ("bubbles pop"), someoneman ("Cure Magic"), wobbleboxx ("Level up, power
+  up, Coin get"), Frosty Ham ("Sick Noises"). CC0 asks for no credit; these names are given as thanks.
+  Other effects are made by the game itself as it runs.
+
+MUSIC  (music/)
+  Composed by the game's author using Suno.
+
+PICTURES  (assets/)
+  Made by the game's author using OpenAI image generation, then assembled for the game.
