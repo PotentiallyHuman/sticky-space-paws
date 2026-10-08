@@ -1,0 +1,14 @@
+[
+ {
+  "relation": [
+   "delegate_permission/common.handle_all_urls"
+  ],
+  "target": {
+   "namespace": "android_app",
+   "package_name": "dk.tinkermation.stickyspacepaws",
+   "sha256_cert_fingerprints": [
+    "E9:F7:5C:A1:3F:12:5E:ED:C1:53:A2:D3:4D:F3:8A:AA:A6:1E:34:80:4B:C3:63:2C:69:66:D8:2A:63:8C:11:8C"
+   ]
+  }
+ }
+]
