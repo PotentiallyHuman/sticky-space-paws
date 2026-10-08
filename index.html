@@ -270,6 +270,8 @@ const SKIES = { street: 'assets/sky/orbit_lane.jpg', diner: 'assets/sky/diner.jp
                 reactor: 'assets/sky/reactor.jpg', doom: 'assets/sky/doom.jpg', noodle: 'assets/sky/noodle.jpg', hole: 'assets/sky/hole.jpg' };
 const skyTex = {}, skyLoads = {};
 const placeOf = (li) => (li >= CANS.length ? 'hole' : canAt(Math.max(0, li)).place || 'street');
+let skySwap = null;             // a decoded sharper sky waiting for a calm moment to be uploaded (the upload stalls a frame)
+function skyCalm() { if (skySwap && (game.loading || veil.on || vrMenu.on || game.phase !== 'play' || !renderer.xr.isPresenting)) { const f = skySwap; skySwap = null; f(); } }
 function loadSky(place) {
   if (skyLoads[place] || !SKIES[place]) return skyLoads[place] || Promise.resolve();
   const im = new Image(), tex = new THREE.Texture(im);
@@ -301,7 +303,7 @@ function loadSky(place) {
     if (!better) return;
     const im2 = new Image(), t1 = performance.now(), note2 = (what) => { if (rec.on) try { fetch('rec?s=skylog', { method: 'POST', body: JSON.stringify({ place, src: better, what: 'upgrade ' + what, ms: Math.round(performance.now() - t1), w: im2.naturalWidth || 0, ua: 'headset' }) + '\n' }); } catch (e) { /* only a note */ } };
     const timer = setTimeout(() => { note2('timeout'); im2.src = ''; }, 20000);
-    im2.onload = () => { clearTimeout(timer); if (skyTex[place] !== tex) return; tex.image = im2; tex.needsUpdate = true; note2('swapped in'); setTimeout(upgrade, 1500); };
+    im2.onload = () => { clearTimeout(timer); if (skyTex[place] !== tex) return; skySwap = () => { if (skyTex[place] !== tex) return; tex.image = im2; tex.needsUpdate = true; note2('swapped in'); setTimeout(upgrade, 1500); }; };
     im2.onerror = () => { clearTimeout(timer); if (im2.src) note2('failed'); };
     im2.src = SKIES[place].replace(/\.jpg$/, better + '.jpg'); note2('asked');
   };
@@ -3647,6 +3649,7 @@ renderer.setAnimationLoop(() => {
     }
   }
   if (!renderer.xr.isPresenting) updateLoading();
+  skyCalm();
   if (!((renderer.xr.isPresenting && veil.on) || game.loading || vrMenu.on)) step(dt);
   if (renderer.xr.isPresenting && placed && !veil.on && !game.over) sealPaws();
   stepGoo(dt); stepSparks(dt); stepSteam(dt);
