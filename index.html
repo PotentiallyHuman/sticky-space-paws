@@ -882,6 +882,18 @@ let best = 0, unlocked = 0, startBin = 0, bestEndless = 0, endlessOpen = false;
 try { bestEndless = +(localStorage.getItem('ssp_best_endless') || 0) || 0; endlessOpen = localStorage.getItem('ssp_endless') === '1'; } catch (e) { /* private mode */ }
 try { best = +(localStorage.getItem('ssp_best') || 0); unlocked = +(localStorage.getItem('ssp_unlocked') || 0); } catch (e) { best = 0; unlocked = 0; }
 if (!isFinite(best) || best < 0) best = 0; if (!isFinite(unlocked) || unlocked < 0) unlocked = 0;      // a spoiled saved value must not lock the bins
+// NIGHTS OUT. How many different days the badger has been out, and the last night's score: shown on the menu so a
+// return has something to look at. The very first night also gets a three-step teach on the sign (touch, shake, turn).
+let nights = 0, lastNight = '', lastScore = 0;
+try { nights = +(localStorage.getItem('ssp_nights') || 0) || 0; lastNight = localStorage.getItem('ssp_last') || ''; lastScore = +(localStorage.getItem('ssp_last_score') || 0) || 0; } catch (e) { /* private mode */ }
+if (!isFinite(nights) || nights < 0) nights = 0; if (!isFinite(lastScore) || lastScore < 0) lastScore = 0;
+const today = () => new Date().toISOString().slice(0, 10);
+function noteNight() { if (lastNight === today()) return; nights += 1; lastNight = today(); try { localStorage.setItem('ssp_nights', String(nights)); localStorage.setItem('ssp_last', lastNight); } catch (e) { /* private mode */ } }
+const teach = { on: nights === 0, step: 0 };          // first night only: 0 touch it, 1 shake to let go, 2 turn it to fit, 3 done
+const TEACH = ['touch it with a paw: it sticks', 'shake the paw to let go', 'turn it so it fits the hole, then let go'];
+// FRAMES. A running count for the Settings page: frames per second over the last second, the slowest frame, and how
+// long the headset took from opening the page to the first frame in the bin. Nothing is sent anywhere.
+const perf = { n: 0, acc: 0, worst: 0, fps: 0, worstMs: 0, start: 0 };
 // The bins come in order. Reaching a bin for the first time unlocks it for good; after that you may
 // start a night there to practise it, giving up the food you could have eaten on the way.
 function unlock(i) {
@@ -1001,7 +1013,8 @@ function menuDraw() {
   c.textAlign = 'left'; c.textBaseline = 'middle';
   if (vrMenu.page === 'root') {
     caps(c, 'STICKY SPACE PAWS', 44, 56, INK.honey, 30);
-    c.font = UIF(500, 24); c.fillStyle = '#9fb0d8'; c.fillText(best ? 'best shift ' + best + (bestEndless ? '    best endless ' + bestEndless : '') : 'poke a button with a fingertip, or point a controller and press', 44, 96);
+    btn('exit', MW - 264, 24, 220, 64, 'EXIT VR', '', { center: true });
+    c.font = UIF(500, 24); c.fillStyle = '#9fb0d8'; c.textAlign = 'left'; c.fillText(best ? 'best shift ' + best + (bestEndless ? '    best endless ' + bestEndless : '') + (nights ? '    nights out ' + nights : '') + (lastScore ? '    last night ' + lastScore : '') : 'poke a button with a fingertip, or point a controller and press', 44, 96);
     let y = 130;
     for (const k of ['shift', 'endless', 'practice']) { const locked = k === 'endless' && !endlessOpen; btn(k, 44, y, MW - 88, 124, MB[k][0], locked ? 'finish the shift to open it' : MB[k][1], { on: vrMenu.sel === k, dim: locked }); y += 138; }
     btn('settings', 44, 560, 300, 80, 'SETTINGS', '', { center: true }); btn('howto', 364, 560, 300, 80, 'HOW TO PLAY', '', { center: true });
@@ -1016,6 +1029,7 @@ function menuDraw() {
     const row = (y, label, value, idm, idp) => { c.font = UIF(700, 36); c.fillStyle = '#f6ecd2'; c.textAlign = 'left'; c.fillText(label, 44, y + 48); btn(idm, 560, y, 100, 96, '-', '', { center: true, big: true }); c.font = UIF(800, 40); c.fillStyle = '#ffb21e'; c.textAlign = 'center'; c.fillText(value, 760, y + 48); btn(idp, 860, y, 100, 96, '+', '', { center: true, big: true }); };
     row(110, 'Music', SETTINGS.music + '%', 'music-', 'music+'); row(226, 'Sound effects', SETTINGS.fx + '%', 'fx-', 'fx+'); row(342, 'Lean over the bin', SETTINGS.lean + ' cm', 'lean-', 'lean+');
     c.font = UIF(700, 36); c.fillStyle = '#f6ecd2'; c.textAlign = 'left'; c.fillText('Snoring', 44, 506); btn('snore', 560, 458, 400, 96, SETTINGS.snore ? 'ON' : 'OFF', '', { center: true, on: SETTINGS.snore });
+    c.font = UIF(500, 24); c.fillStyle = '#9fb0d8'; c.textAlign = 'left'; c.fillText('frames ' + perf.fps + ' per second   slowest frame ' + perf.worstMs + ' ms   first frame after ' + perf.start + ' s', 44, 600, MW - 88);
     btn('back', 44, MH - 110, 300, 80, 'BACK', '', { center: true });
   } else if (vrMenu.page === 'howto') {
     caps(c, 'HOW TO PLAY', 44, 56, INK.honey, 30);
@@ -1046,6 +1060,7 @@ function menuAct(id) {
   else if (id === 'lean-') step('lean', -5, 0, 35); else if (id === 'lean+') step('lean', 5, 0, 35);
   else if (id === 'snore') { S.snore = !S.snore; saveSettings(); }
   else if (id === 'play') { menuStart(); return; }
+  else if (id === 'exit') { const xs = renderer.xr.getSession(); if (xs) xs.end().catch(() => {}); return; }   // leave VR: back to the web page (the session 'end' handler tidies up)
   menuDraw();
 }
 function menuStart() {
@@ -1085,7 +1100,7 @@ function menuStep() {
   if (hot !== vrMenu.hot) { vrMenu.hot = hot; menuDraw(); }
   if (act) menuAct(act);
 }
-const nightOver = () => { vrMenu.overAt = performance.now(); if (sfx) { sfx.snoreStop(); sfx.doorCreak({ when: 0.6 }); sfx.gameOver({ when: 2.0 }); } saveBest(); drawHud('THEY HEARD YOU', 'food points ' + game.score + '     best ' + best, 'the menu opens in a moment'); };
+const nightOver = () => { vrMenu.overAt = performance.now(); if (sfx) { sfx.snoreStop(); sfx.doorCreak({ when: 0.6 }); sfx.gameOver({ when: 2.0 }); } saveBest(); lastScore = game.score; try { localStorage.setItem('ssp_last_score', String(lastScore)); } catch (e) { /* private mode */ } drawHud('THEY HEARD YOU', 'food points ' + game.score + '     best ' + best, 'the menu opens in a moment'); };
 
 // ---------- game state ----------
 const rng = mulberry((Date.now() & 0xffffffff) >>> 0);
@@ -1962,12 +1977,13 @@ function hudNow(extra = '') {
   const lit = Math.max(0, Math.min(3, 3 - game.lives));
   drawSign({ binNo: game.loc + 1, bin: game.can.name, lit, combo: game.combo, score: game.score, food: game.food,
     item: slots.length > 1 ? slots.map((s) => s.round && s.round.item || 'thing').join(' + ') : game.round && game.round.item ? game.round.item : (game.food ? 'space food' : 'space junk'),
-    msg: extra || side || (game.banner > 0 ? game.can.hint + ' (in this bin: ' + (WALLS_PER_CAN - (game.nFood || 0)) + ' junk, ' + (game.nFood || 0) + ' food)' : game.food ? 'Get it through the wall, then eat it.' : 'Get it through the wall, then throw it away.') });
+    msg: extra || (teach.on && teach.step < 3 && game.loc === 0 ? TEACH[teach.step] : '') || side || (game.banner > 0 ? game.can.hint + ' (in this bin: ' + (WALLS_PER_CAN - (game.nFood || 0)) + ' junk, ' + (game.nFood || 0) + ' food)' : game.food ? 'Get it through the wall, then eat it.' : 'Get it through the wall, then throw it away.') });
   showHouse();
 }
 
 function newRound() {
   game.rid = (game.rid || 0) + 1; game.spoiled = false;
+  if (teach.on && game.rid > 2) teach.on = false;   // the sign goes back to its normal hints after two rounds
   // rare walls, never two specials in a row:
   //   from level 6  a wall from the side
   //   from level 14 a front wall with a side wall right behind it, so you must turn the piece between them
@@ -2205,7 +2221,7 @@ function eachSlot(fn) { keep(); const back = cur; for (const s of slots) { use(s
 function restart() {
   for (const d of debris) play.remove(d.o);
   debris.length = 0;
-  game.menu = null; game.firstLoad = true; game.loc = -1; game.level = +(PARAMS.get('level') || (startBin * WALLS_PER_CAN + 1)); game.score = 0; game.lives = 3; game.combo = 0; game.over = false; game.lastSide = true;
+  noteNight(); game.menu = null; game.firstLoad = true; game.loc = -1; game.level = +(PARAMS.get('level') || (startBin * WALLS_PER_CAN + 1)); game.score = 0; game.lives = 3; game.combo = 0; game.over = false; game.lastSide = true;
   newRound();
 }
 
@@ -2812,7 +2828,7 @@ function padFacing(hd, k, nWorld) {        // is a surface with outward directio
   return TIPS[k].endsWith('-tip') && nWorld.dot(_pb) < -0.5;  // a fingertip pressing end-on counts too
 }
 const PRESS = 0.010;        // a joint is pressing on the thing while its centre is within this of the surface (about where the pad's skin is)
-function endGrasp() { grasp.active = false; grasp.nodes.clear(); grasp.mode = ''; grasp.away = grasp.lost = 0; held.hand = -1; }
+function endGrasp() { grasp.active = false; grasp.nodes.clear(); grasp.mode = ''; grasp.away = grasp.lost = 0; held.hand = -1; if (teach.on && teach.step === 1) { teach.step = 2; hudNow(); } }
 
 // NOTHING GOES THROUGH A PAW, BY CONSTRUCTION.
 // The paw you see is covered with balls: one on every joint, one in the middle of every finger section, and
@@ -2988,6 +3004,7 @@ function updateGrab() {
       held.hand = found[0].h;
       if (dropRound) { game.armed = true; game.vy = 0; }
       sndGrab();
+      if (teach.on && teach.step === 0) { teach.step = 1; hudNow(); }
     } else if (free || (game.phase === 'play' && !dropRound && !game.captured)) for (const f of found) pushPiece(f);
   }
   // RESTING ON A PAW. A loose thing lying against two or more pads is sitting in honey: it stops turning and
@@ -3625,7 +3642,9 @@ renderer.domElement.addEventListener('webglcontextlost', (e) => {
 });
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
+  perf.n++; perf.acc += raw; if (raw > perf.worst) perf.worst = raw;
+  if (perf.acc >= 1) { perf.fps = Math.round(perf.n / perf.acc); perf.worstMs = Math.round(perf.worst * 1000); perf.n = 0; perf.acc = 0; perf.worst = 0; }
   if (WATCH) {
     if (WATCH.latest) { const st = WATCH.latest; WATCH.latest = null; try { watchApply(st); WATCH.err = ''; WATCH.n = (WATCH.n || 0) + 1; if (WATCH.n === 40 && PARAMS.has('out')) say('WATCH OK after 40 states: bin ' + game.loc + ' level ' + game.level + ' things ' + slots.map((sl) => (sl.round && sl.round.item) + (sl.piece && sl.piece.visible ? '' : ' (hidden)') + ' walls ' + sl.walls.length + ' at ' + sl.walls.map((w) => w.mesh.position.z.toFixed(2)).join('/')).join(' | ') + '; camera ' + camera.position.toArray().map((v) => v.toFixed(2)).join(',')); } catch (e) { if (WATCH.err !== e.message) { WATCH.err = e.message; say('watching: ' + e.message + ' ' + ((e.stack || '').split('\n')[1] || '')); } } }
     if (env && env.userData.eggs) stepEggs(dt, performance.now() / 1000);
@@ -3634,7 +3653,7 @@ renderer.setAnimationLoop(() => {
     return;
   }
   if (renderer.xr.isPresenting) {
-    if (!placed && ++frames > 20) { placed = placePlay(); if (placed) { applyLook(); setVeil(false, ''); menuShow(true); if (env) env.visible = true; } }      // in the headset the night begins at the menu
+    if (!placed && ++frames > 20) { placed = placePlay(); if (placed) { if (!perf.start) perf.start = Math.round(performance.now() / 100) / 10; applyLook(); setVeil(false, ''); menuShow(true); if (env) env.visible = true; } }      // in the headset the night begins at the menu
     if (placed) {
       readHands(dt);
       if (vrMenu.on) { menuStep(); recFrame(performance.now()); }
