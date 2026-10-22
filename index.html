@@ -351,12 +351,22 @@ for (const name in PAINTED) {
   tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
   const uvRect = (r) => new THREE.Vector4(r[0] / P.size[0], 1 - r[3] / P.size[1], r[2] / P.size[0], 1 - r[1] / P.size[1]);
   P.mat = new THREE.ShaderMaterial({
-    uniforms: { map: { value: tex }, win: { value: P.wins.map(uvRect) }, door: { value: uvRect(P.door) }, lit: { value: new THREE.Vector3() }, doorLit: { value: 0 }, alarm: { value: 0 } },
+    uniforms: { map: { value: tex }, win: { value: P.wins.map(uvRect) }, door: { value: uvRect(P.door) }, lit: { value: new THREE.Vector3() }, doorLit: { value: 0 }, alarm: { value: 0 }, glitch: { value: 0 }, gt: { value: 0 } },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform sampler2D map; uniform vec4 win[3]; uniform vec4 door; uniform vec3 lit; uniform float doorLit; uniform float alarm; varying vec2 vUv;
+    fragmentShader: `uniform sampler2D map; uniform vec4 win[3]; uniform vec4 door; uniform vec3 lit; uniform float doorLit; uniform float alarm; uniform float glitch; uniform float gt; varying vec2 vUv;
+      float hash(float n) { return fract(sin(n) * 43758.5453); }
       float inside(vec4 r) { return step(r.x, vUv.x) * step(vUv.x, r.z) * step(r.y, vUv.y) * step(vUv.y, r.w); }
       void main() {
-        vec4 c = texture2D(map, vUv);
+        vec2 uv = vUv;                                                       // hit by junk: the place glitches like a hologram
+        float band = floor(uv.y * 48.0), tick = floor(gt * 30.0);
+        if (glitch > 0.0) { uv.x += (hash(band + tick * 7.0) - 0.5) * 0.06 * glitch * step(0.55, hash(band * 3.0 + tick)); }
+        vec4 c = texture2D(map, uv);
+        if (glitch > 0.0) {
+          float sp = 0.012 * glitch; c.r = texture2D(map, uv + vec2(sp, 0.0)).r; c.b = texture2D(map, uv - vec2(sp, 0.0)).b;
+          if (hash(band + tick * 13.0) < 0.12 * glitch) discard;              // a torn line
+          c.rgb = mix(c.rgb, c.rgb * vec3(0.55, 1.25, 1.45) + vec3(0.0, 0.06, 0.1), 0.7 * glitch) * (1.0 - 0.3 * glitch * step(0.5, fract(vUv.y * 160.0)));
+          c.rgb *= 1.0 - 0.45 * glitch * step(0.7, hash(tick));                // the whole picture flickers
+        }
         if (max(c.r, max(c.g, c.b)) < 0.0015) discard;                       // the black around the painting is empty space
         vec3 warm = vec3(1.0, 0.80, 0.38);
         c.rgb = mix(c.rgb, warm, 0.78 * (inside(win[0]) * lit.x + inside(win[1]) * lit.y + inside(win[2]) * lit.z));   // a window whose light is on
@@ -738,6 +748,24 @@ const sndGrab = () => beep(880, .05, 'triangle', .08);
 let sfx = null;
 const WARN = { left: 'left', fl: 'left', bl: 'left', right: 'right', fr: 'right', br: 'right', behind: 'behind', above: 'above', below: 'below', both: 'front', drop: 'above' };
 // somebody in the house heard that
+// BONK. Junk thrown at the house: whatever place this bin paints flickers and tears like a hologram for a moment and
+// shudders (the street's block house shakes with it).
+const bonk = { t: -1, base: [], mats: [] };
+function houseBonk() {
+  if (!env) return;
+  const sheets = Object.values(PAINTED).filter((P) => P.sheet && P.sheet.visible && P.mat);
+  if (bonk.t < 0) bonk.base = [env.userData.house, ...sheets.map((P) => P.sheet)].filter((o) => o && o.visible).map((o) => [o, o.position.clone()]);
+  bonk.mats = sheets.map((P) => P.mat);
+  bonk.t = performance.now();
+}
+function stepBonk() {
+  if (bonk.t < 0) return;
+  const k = (performance.now() - bonk.t) / 1000;
+  if (k > 0.7) { bonk.base.forEach(([o, p]) => o.position.copy(p)); bonk.mats.forEach((m) => { m.uniforms.glitch.value = 0; }); bonk.t = -1; return; }
+  const f = 1 - k / 0.7, sx = Math.sin(k * 70) * 0.05 * f, sy = Math.sin(k * 53 + 1) * 0.025 * f;
+  bonk.base.forEach(([o, p]) => o.position.set(p.x + sx, p.y + sy, p.z));
+  bonk.mats.forEach((m) => { m.uniforms.glitch.value = Math.min(1, 1.6 * f); m.uniforms.gt.value = k; });
+}
 function houseStirs() {
   if (!sfx) return;
   sfx.snoreStop({ when: 0.9 }); sfx.windowOn({ when: 1.7 }); sfx.angryMumble({ when: 2.1, gain: 0.7 });
@@ -2175,7 +2203,7 @@ function stepRelease(dt) {
     const toward = pv.length() > 0.15 && _a.copy(pv).normalize().dot(HOUSE_DIR) > 0.78;
     if (toward) {
       // you threw it at the house
-      sndBad(); crash(); game.lives--; game.combo = 0; game.spoiled = true;
+      sndBad(); crash(); game.lives--; game.combo = 0; game.spoiled = true; houseBonk(); if (game.lives <= 0 && sfx) sfx.clonk();      // the last light still gets its bonk
       play.remove(piece); piece = null;
       if (game.lives <= 0) { game.over = true; showHouse(); beep(70, .5, 'sawtooth', .3, .5); nightOver(); return; }
       samp('wood', 1.0, 0.25); samp('wood', 0.5, 0.5, 0.8); if (sfx) sfx.clonk({ when: 0.2 }); houseStirs();
@@ -3131,7 +3159,7 @@ function step(dt) {
   if (scroller) scroller.position.z = (scroller.position.z + dt * 1.5) % 2;
   if (env && env.userData.eggs) stepEggs(dt, performance.now() / 1000);
   if (env && env.userData.bob) { const t = performance.now() / 1000; if (!PAINTED.street.sheet || PAINTED.street.sheet.parent !== env) for (const b of env.userData.bob) b.o.position.y = b.y + 0.18 * Math.sin(t * 0.4 + b.ph); if (env.userData.sets) env.userData.sets.disc.rotation.z = t * 0.15; }   // the neighbours drift gently
-  stepShards(dt);
+  stepShards(dt); stepBonk();
   stepDebris(dt);
   if (musicOn()) {      // the field and the platform pulse on every beat
     const t = songTime();
@@ -3656,7 +3684,7 @@ renderer.setAnimationLoop(() => {
   if (WATCH) {
     if (WATCH.latest) { const st = WATCH.latest; WATCH.latest = null; try { watchApply(st); WATCH.err = ''; WATCH.n = (WATCH.n || 0) + 1; if (WATCH.n === 40 && PARAMS.has('out')) say('WATCH OK after 40 states: bin ' + game.loc + ' level ' + game.level + ' things ' + slots.map((sl) => (sl.round && sl.round.item) + (sl.piece && sl.piece.visible ? '' : ' (hidden)') + ' walls ' + sl.walls.length + ' at ' + sl.walls.map((w) => w.mesh.position.z.toFixed(2)).join('/')).join(' | ') + '; camera ' + camera.position.toArray().map((v) => v.toFixed(2)).join(',')); } catch (e) { if (WATCH.err !== e.message) { WATCH.err = e.message; say('watching: ' + e.message + ' ' + ((e.stack || '').split('\n')[1] || '')); } } }
     if (env && env.userData.eggs) stepEggs(dt, performance.now() / 1000);
-    stepShards(dt); stepSparks(dt);
+    stepShards(dt); stepSparks(dt); stepBonk();
     renderer.render(scene, camera);
     return;
   }
