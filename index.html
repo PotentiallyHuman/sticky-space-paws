@@ -888,7 +888,14 @@ let nights = 0, lastNight = '', lastScore = 0;
 try { nights = +(localStorage.getItem('ssp_nights') || 0) || 0; lastNight = localStorage.getItem('ssp_last') || ''; lastScore = +(localStorage.getItem('ssp_last_score') || 0) || 0; } catch (e) { /* private mode */ }
 if (!isFinite(nights) || nights < 0) nights = 0; if (!isFinite(lastScore) || lastScore < 0) lastScore = 0;
 const today = () => new Date().toISOString().slice(0, 10);
-function noteNight() { if (lastNight === today()) return; nights += 1; lastNight = today(); try { localStorage.setItem('ssp_nights', String(nights)); localStorage.setItem('ssp_last', lastNight); } catch (e) { /* private mode */ } }
+function noteNight() { if (lastNight === today()) return; nights += 1; lastNight = today(); paintHoney(); try { localStorage.setItem('ssp_nights', String(nights)); localStorage.setItem('ssp_last', lastNight); } catch (e) { /* private mode */ } }
+// HONEY JARS. The reason to come back: every new night out opens the next honey, and tonight's honey is the newest
+// one open. It colours the goo on the paws and is named on the menu with the one that waits for tomorrow.
+const HONEYS = [['wildflower', 0xffb52a, 0xb86200], ['clover', 0xfff07a, 0xb8a000], ['orange blossom', 0xffd060, 0xd07a00],
+  ['heather', 0xff8a4a, 0xa83a10], ['lavender', 0xd9a8ff, 0x7a3ab8], ['buckwheat', 0x8a4a1a, 0x5a2400],
+  ['mint', 0x9affc0, 0x10a860], ['space honey', 0x8ad8ff, 0x2a60ff]];
+const honeyNow = () => HONEYS[Math.min(Math.max(nights, 1), HONEYS.length) - 1];
+function paintHoney() { const h = honeyNow(); gooMat.color.setHex(h[1]); gooMat.emissive.setHex(h[2]); }
 const teach = { on: nights === 0, step: 0 };          // first night only: 0 touch it, 1 shake to let go, 2 turn it to fit, 3 done
 const TEACH = ['touch it with a paw: it sticks', 'shake the paw to let go', 'turn it so it fits the hole, then let go'];
 // FRAMES. A running count for the Settings page: frames per second over the last second, the slowest frame, and how
@@ -1014,7 +1021,7 @@ function menuDraw() {
   if (vrMenu.page === 'root') {
     caps(c, 'STICKY SPACE PAWS', 44, 56, INK.honey, 30);
     btn('exit', MW - 264, 24, 220, 64, 'EXIT VR', '', { center: true });
-    c.font = UIF(500, 24); c.fillStyle = '#9fb0d8'; c.textAlign = 'left'; c.fillText(best ? 'best shift ' + best + (bestEndless ? '    best endless ' + bestEndless : '') + (nights ? '    nights out ' + nights : '') + (lastScore ? '    last night ' + lastScore : '') : 'poke a button with a fingertip, or point a controller and press', 44, 96);
+    c.font = UIF(500, 24); c.fillStyle = '#9fb0d8'; c.textAlign = 'left'; c.fillText(best ? 'best shift ' + best + (bestEndless ? '    best endless ' + bestEndless : '') + (nights ? '    nights out ' + nights : '') + (lastScore ? '    last night ' + lastScore : '') + '    honey: ' + honeyNow()[0] + (nights < HONEYS.length ? ' (next night: ' + HONEYS[nights][0] + ')' : '') : 'poke a button with a fingertip, or point a controller and press', 44, 96, MW - 88);
     let y = 130;
     for (const k of ['shift', 'endless', 'practice']) { const locked = k === 'endless' && !endlessOpen; btn(k, 44, y, MW - 88, 124, MB[k][0], locked ? 'finish the shift to open it' : MB[k][1], { on: vrMenu.sel === k, dim: locked }); y += 138; }
     btn('settings', 44, 560, 300, 80, 'SETTINGS', '', { center: true }); btn('howto', 364, 560, 300, 80, 'HOW TO PLAY', '', { center: true });
@@ -2706,6 +2713,7 @@ function honeyThreads(found, dropRound) {
 const GOO_MAX = 14, GOO_RINGS = 16, GOO_SIDES = 6, GOO_SHOW = 0.006, GOO_END = 0.0030, GOO_PART = 0.28;
 const gooMat = new THREE.MeshStandardMaterial({ color: 0xffb52a, emissive: 0xb86200, emissiveIntensity: 0.9, roughness: 0.12, metalness: 0,
                                                 transparent: true, opacity: 0.6, depthWrite: false });
+paintHoney();
 const goo = new Map(), gooPool = [];
 function gooMesh() {
   if (gooPool.length) return gooPool.pop();
